@@ -47,6 +47,23 @@ interface DailyStats {
 interface TelegramUpdate {
   update_id: number;
   message?: TelegramMessage;
+  callback_query?: CallbackQuery;
+}
+
+interface CallbackQuery {
+  id: string;
+  from: TelegramUser;
+  message?: TelegramMessage;
+  data: string;
+}
+
+interface InlineKeyboardMarkup {
+  inline_keyboard: Array<Array<InlineKeyboardButton>>;
+}
+
+interface InlineKeyboardButton {
+  text: string;
+  callback_data?: string;
 }
 
 interface TelegramMessage {
@@ -55,6 +72,7 @@ interface TelegramMessage {
   chat: TelegramChat;
   text?: string;
   date: number;
+  reply_markup?: InlineKeyboardMarkup;
 }
 
 interface TelegramUser {
@@ -112,7 +130,8 @@ function calculateMacros(tdee: number): { protein: number; fat: number; carbs: n
 async function sendTelegramMessage(
   chatId: number, 
   text: string, 
-  botToken: string
+  botToken: string,
+  reply_markup?: InlineKeyboardMarkup
 ): Promise<void> {
   const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
   const response = await fetch(url, {
@@ -124,6 +143,7 @@ async function sendTelegramMessage(
       chat_id: chatId,
       text,
       parse_mode: 'Markdown',
+      reply_markup
     }),
   });
   
@@ -150,12 +170,59 @@ async function handleStartCommand(
   // Store the wizard session
   await env.USER_DATA.put(`wizard:${userId}`, JSON.stringify(wizardSession));
   
-  // Send welcome message and first question
+  // Create inline keyboard for gender selection
+  const keyboard: InlineKeyboardMarkup = {
+    inline_keyboard: [
+      [
+        { text: '👨 Мужской', callback_data: 'gender_male' },
+        { text: '👩 Женский', callback_data: 'gender_female' }
+      ]
+    ]
+  };
+  
+  // Send welcome message with gender selection buttons
   await sendTelegramMessage(
     chatId,
-    'Добро пожаловать в FoodDaily бот! Давайте настроим ваш профиль для расчета КБЖУ.\n\nУкажите ваш пол (м/ж):',
-    env.TELEGRAM_BOT_TOKEN
+    'Добро пожаловать в FoodDaily бот! Давайте настроим ваш профиль для расчета КБЖУ.\n\nВыберите ваш пол:',
+    env.TELEGRAM_BOT_TOKEN,
+    keyboard
   );
+}
+
+// Handle callback queries from inline buttons
+async function handleCallbackQuery(
+  query: CallbackQuery,
+  env: Env
+): Promise<void> {
+  const userId = query.from.id;
+  const chatId = query.message?.chat.id;
+  
+  if (!chatId) return;
+  
+  // Get wizard session
+  const wizardData = await env.USER_DATA.get(`wizard:${userId}`);
+  if (!wizardData) return;
+  
+  const wizard: WizardSession = JSON.parse(wizardData);
+  
+  if (wizard.step === 'gender') {
+    if (query.data === 'gender_male') {
+      wizard.partialProfile.gender = 'male';
+    } else if (query.data === 'gender_female') {
+      wizard.partialProfile.gender = 'female';
+    }
+    
+    // Update wizard step
+    wizard.step = 'age';
+    await env.USER_DATA.put(`wizard:${userId}`, JSON.stringify(wizard));
+    
+    // Send next question
+    await sendTelegramMessage(
+      chatId,
+      'Отлично! Теперь введите ваш возраст (лет):',
+      env.TELEGRAM_BOT_TOKEN
+    );
+  }
 }
 
 // Process the wizard steps based on user responses
@@ -564,6 +631,13 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
   try {
     const update: TelegramUpdate = await request.json();
     console.log(`[Bot] Received update:`, update);
+    
+    // Handle callback queries from inline buttons
+    if (update.callback_query) {
+      console.log(`[Bot] Received callback query:`, update.callback_query);
+      await handleCallbackQuery(update.callback_query, env);
+      return new Response('OK', { status: 200 });
+    }
     
     if (!update.message) {
       console.log(`[Bot] No message in update`);
