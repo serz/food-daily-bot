@@ -1,0 +1,20 @@
+name = "food-daily-bot"
+main = "src/index.ts"
+compatibility_date = "2023-10-01"
+
+[vars]
+TELEGRAM_BOT_TOKEN = ""
+OPENAI_API_KEY = ""
+
+[observability.logs]
+enabled = true
+
+[[kv_namespaces]]
+binding = "USER_DATA"
+id = ""
+preview_id = ""
+
+[[kv_namespaces]]
+binding = "FOOD_HISTORY"
+id = ""
+preview_id = ""

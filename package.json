@@ -1,0 +1,23 @@
+{
+  "name": "food-daily-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot for tracking nutrition with TDEE calculation",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "npx wrangler dev src/index.ts",
+    "deploy": "npx wrangler deploy src/index.ts"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "openai": "^4.24.0",
+    "node-telegram-bot-api": "^0.64.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20230904.0",
+    "@types/node-telegram-bot-api": "^0.64.0",
+    "typescript": "^5.0.0",
+    "wrangler": "^3.0.0"
+  }
+} 
