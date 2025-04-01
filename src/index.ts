@@ -13,7 +13,7 @@ interface UserProfile {
   age: number;
   height: number;
   weight: number;
-  activityLevel: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
+  activityLevel: 'sedentary' | 'light' | 'moderate' | 'active';
   tdee?: number;
   protein?: number;
   fat?: number;
@@ -97,7 +97,6 @@ const ACTIVITY_MULTIPLIERS = {
   light: 1.375,        // Light exercise 1-3 days/week
   moderate: 1.55,      // Moderate exercise 3-5 days/week
   active: 1.725,       // Heavy exercise 6-7 days/week
-  very_active: 1.9     // Very heavy exercise, physical job or training twice a day
 };
 
 // Function to calculate TDEE using Mifflin-St Jeor formula
@@ -222,6 +221,55 @@ async function handleCallbackQuery(
       'Отлично! Теперь введите ваш возраст (лет):',
       env.TELEGRAM_BOT_TOKEN
     );
+  } else if (wizard.step === 'activity') {
+    let activityLevel: UserProfile['activityLevel'];
+    
+    switch (query.data) {
+      case 'activity_sedentary':
+        activityLevel = 'sedentary';
+        break;
+      case 'activity_light':
+        activityLevel = 'light';
+        break;
+      case 'activity_moderate':
+        activityLevel = 'moderate';
+        break;
+      case 'activity_active':
+        activityLevel = 'active';
+        break;
+      default:
+        return;
+    }
+    
+    wizard.partialProfile.activityLevel = activityLevel;
+    
+    // Complete the profile and calculate TDEE and macros
+    const completeProfile: UserProfile = wizard.partialProfile as UserProfile;
+    completeProfile.tdee = calculateTDEE(completeProfile);
+    
+    const macros = calculateMacros(completeProfile.tdee);
+    completeProfile.protein = macros.protein;
+    completeProfile.fat = macros.fat;
+    completeProfile.carbs = macros.carbs;
+    
+    // Save the complete profile
+    await env.USER_DATA.put(`profile:${userId}`, JSON.stringify(completeProfile));
+    
+    // Delete the wizard session
+    await env.USER_DATA.delete(`wizard:${userId}`);
+    
+    // Send the results
+    await sendTelegramMessage(
+      chatId,
+      `✅ Ваш профиль создан!\n\n` +
+      `Ваша суточная норма калорий (TDEE): ${completeProfile.tdee} ккал\n\n` +
+      `Рекомендуемые макронутриенты:\n` +
+      `🥩 Белки: ${completeProfile.protein} г\n` +
+      `🧈 Жиры: ${completeProfile.fat} г\n` +
+      `🍚 Углеводы: ${completeProfile.carbs} г\n\n` +
+      `Теперь вы можете отправить мне название любого блюда, и я оценю его КБЖУ.`,
+      env.TELEGRAM_BOT_TOKEN
+    );
   }
 }
 
@@ -295,15 +343,30 @@ async function processWizard(
       wizard.partialProfile.weight = weight;
       wizard.step = 'activity';
       await env.USER_DATA.put(`wizard:${userId}`, JSON.stringify(wizard));
+      
+      // Create inline keyboard for activity level selection
+      const keyboard: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [
+            { text: '👩🏼‍💻 Сидячий', callback_data: 'activity_sedentary' },
+            { text: '🧘‍♂️ Лёгкий', callback_data: 'activity_light' }
+          ],
+          [
+            { text: '🏃‍♀️ Средний', callback_data: 'activity_moderate' },
+            { text: '🏋️ Высокий', callback_data: 'activity_active' }
+          ]
+        ]
+      };
+      
       await sendTelegramMessage(
-        chatId, 
-        'Выберите уровень вашей физической активности:\n' +
-        '1 - Сидячий (мало или совсем нет физических нагрузок)\n' +
-        '2 - Лёгкий (легкие упражнения 1-3 раза в неделю)\n' +
-        '3 - Средний (умеренные упражнения 3-5 раз в неделю)\n' +
-        '4 - Высокий (интенсивные упражнения 6-7 раз в неделю)\n' +
-        '5 - Очень высокий (очень интенсивные нагрузки, физическая работа или тренировки дважды в день)',
-        env.TELEGRAM_BOT_TOKEN
+        chatId,
+        'Выберите уровень вашей физической активности:\n\n' +
+        '👩🏼‍💻 Сидячий - мало или совсем нет физических нагрузок\n' +
+        '🧘‍♂️ Лёгкий - легкие упражнения 1-3 раза в неделю\n' +
+        '🏃‍♀️ Средний - умеренные упражнения 3-5 раз в неделю\n' +
+        '🏋️ Высокий - интенсивные упражнения 6-7 раз в неделю',
+        env.TELEGRAM_BOT_TOKEN,
+        keyboard
       );
       return true;
       
@@ -323,11 +386,8 @@ async function processWizard(
         case '4':
           activityLevel = 'active';
           break;
-        case '5':
-          activityLevel = 'very_active';
-          break;
         default:
-          await sendTelegramMessage(chatId, 'Пожалуйста, выберите уровень активности от 1 до 5.', env.TELEGRAM_BOT_TOKEN);
+          await sendTelegramMessage(chatId, 'Пожалуйста, выберите уровень активности от 1 до 4.', env.TELEGRAM_BOT_TOKEN);
           return true;
       }
       
