@@ -409,6 +409,17 @@ async function handleFoodDescription(
   
   console.log(`[Bot] User ${userId} requested food analysis: "${foodDescription}"`);
   
+  // Check if description is too short
+  if (foodDescription.trim().length < 8) {
+    console.log(`[Bot] Food description too short: "${foodDescription}"`);
+    await sendTelegramMessage(
+      chatId,
+      'Опиши блюдо чуть подробнее, чтобы я мог посчитать КБЖУ 🧐',
+      env.TELEGRAM_BOT_TOKEN
+    );
+    return;
+  }
+  
   // First check if user has a profile
   const profileData = await env.USER_DATA.get(`profile:${userId}`);
   console.log(`[KV] User profile data: ${profileData}`);
