@@ -686,6 +686,42 @@ async function handleTotalCommand(
   );
 }
 
+// Handle the /profile command for updating user data
+async function handleProfileCommand(
+  message: TelegramMessage,
+  env: Env
+): Promise<void> {
+  const userId = message.from.id;
+  const chatId = message.chat.id;
+  
+  // Initialize a new wizard session
+  const wizardSession: WizardSession = {
+    step: 'gender',
+    partialProfile: {}
+  };
+  
+  // Store the wizard session
+  await env.USER_DATA.put(`wizard:${userId}`, JSON.stringify(wizardSession));
+  
+  // Create inline keyboard for gender selection
+  const keyboard: InlineKeyboardMarkup = {
+    inline_keyboard: [
+      [
+        { text: '👨 Мужской', callback_data: 'gender_male' },
+        { text: '👩 Женский', callback_data: 'gender_female' }
+      ]
+    ]
+  };
+  
+  // Send profile update message with gender selection buttons
+  await sendTelegramMessage(
+    chatId,
+    'Давайте обновим ваш профиль.\n\nВыберите ваш пол:',
+    env.TELEGRAM_BOT_TOKEN,
+    keyboard
+  );
+}
+
 // Main webhook handler for Telegram updates
 async function handleWebhook(request: Request, env: Env): Promise<Response> {
   try {
@@ -718,12 +754,15 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
       } else if (text === '/result') {
         console.log(`[Bot] Processing /result command for user ${message.from.id}`);
         await handleTotalCommand(message, env);
+      } else if (text === '/profile') {
+        console.log(`[Bot] Processing /profile command for user ${message.from.id}`);
+        await handleProfileCommand(message, env);
       } else {
         // Unknown command
         console.log(`[Bot] Unknown command from user ${message.from.id}: "${text}"`);
         await sendTelegramMessage(
           message.chat.id, 
-          `🤷‍♂️ Сорян, я не знаю команды "${text}"\n\nДоступные команды:\n/start - настроить профиль\n/result - показать дневную статистику`, 
+          `🤷‍♂️ Сорян, я не знаю команды "${text}"\n\nДоступные команды:\n/start - начать работу с ботом\n/profile - обновить данные профиля\n/result - показать дневную статистику`, 
           env.TELEGRAM_BOT_TOKEN
         );
       }
