@@ -182,7 +182,7 @@ async function handleStartCommand(
   // Send welcome message with gender selection buttons
   await sendTelegramMessage(
     chatId,
-    'Добро пожаловать в FoodDaily бот! Давайте настроим ваш профиль для расчета КБЖУ.\n\nВыберите ваш пол:',
+    'Добро пожаловать! Это твой личный КБЖУ-дневник — всё по-честному 😎\n\nВыберите ваш пол:',
     env.TELEGRAM_BOT_TOKEN,
     keyboard
   );
